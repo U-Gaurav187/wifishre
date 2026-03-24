@@ -542,29 +542,26 @@ async function uploadAndSend({file,kind},mr){
     const p=progRow.querySelector('.uprog-pct');
     if(b)b.style.width=pct+'%';if(p)p.textContent=pct+'%';
   };
-  try{
-    let uploadFile=file;
-    if(kind==='image'){
-      const compressed=await compressImage(file);
-      uploadFile=await dataUrlToFile(compressed,file.name);
-    }
-    const result=await uploadToGofile(uploadFile,setProgress);
-    progRow.remove();
-push(mr,{
-  type:kind==='image'?'image':kind==='video'?'video':'file',
-  url:result.url,
-  base64: base64 || null,
-  fname:file.name,
-  size:file.size,
-  name:myName,
-  uid:UID,
-  color:myColor,
-  ts:serverTimestamp()
-});
-  }
+ 
 
 
-function mkProgBubble(id,filename){
+try{
+  push(mr,{
+    type:kind==='image'?'image':kind==='video'?'video':'file',
+    url:result.url,
+    base64: base64 || null,
+    fname:file.name,
+    size:file.size,
+    name:myName,
+    uid:UID,
+    color:myColor,
+    ts:serverTimestamp()
+  });
+}
+catch(e){
+  toast('Upload failed');
+}
+  function mkProgBubble(id,filename){
   const row=document.createElement('div');
   row.className='mr own';row.dataset.id=id;
   row.innerHTML=`<div class="mav" style="background:${myColor}22;color:${myColor};border:1.5px solid ${myColor}55">${myName[0].toUpperCase()}</div><div class="mc" style="align-items:flex-end"><div class="bbl" style="background:var(--own-bg);border:1px solid var(--own-br);border-bottom-right-radius:4px;padding:10px 14px"><div class="uprog-bbl"><div class="uprog-name">Uploading: ${esc(filename)}</div><div class="uprog-row"><div class="uprog-bar-wrap"><div class="uprog-bar"></div></div><div class="uprog-pct">0%</div></div></div></div></div>`;
