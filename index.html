@@ -356,31 +356,44 @@ function mkBubble(id,msg,own){
 
 // ── GOFILE UPLOAD (no size limit, free, no account) ──
 async function uploadToGofile(file,onProgress){
-  const serverRes=await fetch('https://api.gofile.io/servers');
-  const serverData=await serverRes.json();
-  const server=serverData.data.servers[0].name;
-  const formData=new FormData();
-  formData.append('file',file);
-  return new Promise((resolve,reject)=>{
-    const xhr=new XMLHttpRequest();
-    xhr.open('POST',`https://${server}.gofile.io/contents/uploadfile`);
-    xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.round(e.loaded/e.total*100));};
-    xhr.onload=()=>{
-      try{
-        const res=JSON.parse(xhr.responseText);
-        if(res.status==='ok'){
-          const d=res.data;
-          // Build direct download link
-          const url=`https://store${d.servers[0].split('store').pop()}.gofile.io/download/direct/${d.parentFolder}/${d.name}`;
-          resolve({url,name:d.name,size:file.size});
-        }else reject(new Error('Gofile: '+res.status));
-      }catch(e){reject(e);}
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://upload.gofile.io/uploadfile');
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
     };
-    xhr.onerror=()=>reject(new Error('Network error'));
+
+    xhr.onload = () => {
+      try {
+        const res = JSON.parse(xhr.responseText);
+
+        if (res.status === 'ok') {
+          const d = res.data;
+
+          // Use GoFile's returned download page instead of building a fake URL
+          const url = d.downloadPage || d.link || d.url || '';
+
+          resolve({
+            url,
+            name: file.name,
+            size: file.size
+          });
+        } else {
+          reject(new Error('Gofile: ' + (res.status || 'upload failed')));
+        }
+      } catch (e) {
+        reject(e);
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error'));
     xhr.send(formData);
   });
 }
-
 $('sendBtn').addEventListener('click',send);
 tin.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
 
