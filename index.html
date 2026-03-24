@@ -515,8 +515,29 @@ document.addEventListener('pointerdown',e=>{if(!ctxEl.contains(e.target))closeCt
 $('ctxCopy').addEventListener('click',()=>{closeCtx();const t=ctxMsgData?.text||'';if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast('Copied!')).catch(()=>fbCopy(t));else fbCopy(t);});
 function fbCopy(t){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();toast('Copied!');}
 $('ctxEdit').addEventListener('click',()=>{closeCtx();if(!ctxMsgData)return;editingMsgId=ctxMsgId;editingOrigData=ctxMsgData;tin.value=ctxMsgData.text||'';rsz(tin);tin.focus();editBar.classList.add('active');});
-$('ctxDl').addEventListener('click',()=>{closeCtx();if(ctxMsgData?.url)window.open(ctxMsgData.url,'_blank');toast('Opening download...');});
-$('ctxDel').addEventListener('click',()=>{closeCtx();if(!ctxIsOwn){toast('You can only delete your own messages');return;}remove(ref(db,`rooms/${myRoom}/messages/${ctxMsgId}`));rendered.delete(ctxMsgId);toast('Deleted');});
+$('ctxDl').addEventListener('click', async ()=>{
+  closeCtx();
+
+  try{
+    const res = await fetch(ctxMsgData.url);
+    if(!res.ok) throw new Error();
+
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    a.href = url;
+    a.download = ctxMsgData.fname || 'download';
+    a.click();
+
+    URL.revokeObjectURL(url);
+    toast('⬇ Download started');
+  }catch(e){
+    // fallback
+    window.open(ctxMsgData.url,'_blank');
+    toast('Opening download page...');
+  }
+});$('ctxDel').addEventListener('click',()=>{closeCtx();if(!ctxIsOwn){toast('You can only delete your own messages');return;}remove(ref(db,`rooms/${myRoom}/messages/${ctxMsgId}`));rendered.delete(ctxMsgId);toast('Deleted');});
 
 $('editCancelBtn').addEventListener('click',cancelEdit);
 function cancelEdit(){editingMsgId=null;editingOrigData=null;tin.value='';rsz(tin);editBar.classList.remove('active');}
