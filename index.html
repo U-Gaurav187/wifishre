@@ -6,6 +6,52 @@
 <title>WifiShare</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
+  .media-bbl{
+  padding:10px 14px;
+}
+
+.media-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.media-icon{
+  font-size:26px;
+}
+
+.media-info{
+  flex:1;
+}
+
+.media-title{
+  font-size:14px;
+  font-weight:700;
+}
+
+.media-sub{
+  font-size:11px;
+  color:var(--dim);
+}
+
+.dl-btn{
+  width:32px;
+  height:32px;
+  border:none;
+  border-radius:50%;
+  background:var(--ac);
+  color:#fff;
+  cursor:pointer;
+  font-size:14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.dl-btn:hover{
+  background:var(--ac2);
+  transform:scale(1.1);
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
   --bg:#f0f2f0;--s0:#fff;--s1:#f5f6f5;--s2:#dde0dd;--s3:#c8cdc8;
@@ -248,6 +294,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getDatabase, ref, push, onValue, serverTimestamp, set, onDisconnect, remove }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
+
+
 const FIREBASE_CONFIG = {
   apiKey:"AIzaSyAX_8DyrGZtLODF0omJruVY_McVFBcoRQw",
   authDomain:"wifishar.firebaseapp.com",
@@ -265,6 +313,12 @@ const PAL=['#1db954','#2e7d32','#e67e22','#e74c3c','#8e44ad','#2980b9','#16a085'
 const myColor=PAL[Math.abs([...UID].reduce((a,c)=>a+c.charCodeAt(0),0))%PAL.length];
 let myName='',myRoom='main',pendingFiles=[],typTimer=null,isTyping=false,stopAll=()=>{};
 const rendered=new Set();
+  let mediaCounter = {
+  image: 0,
+  video: 0,
+  file: 0
+};
+
 let ctxMsgId=null,ctxMsgData=null,ctxIsOwn=false,editingMsgId=null,editingOrigData=null;
 
 const $=id=>document.getElementById(id);
@@ -332,17 +386,84 @@ function mkBubble(id,msg,own){
   const ts=msg.ts?new Date(msg.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
   const etag=msg.edited?'<span class="edited-tag"> (edited)</span>':'';
   let inner='';
-  if(msg.type==='text'){
-    inner=`<div class="bbl">${esc(msg.text||'').replace(/\n/g,'<br/>')}${etag}</div>`;
-  }else if(msg.type==='image'){
-    inner=`<div class="bbl" style="padding:4px"><img class="mimg" src="${msg.url}" alt="image" loading="lazy"/></div>`;
-  }else if(msg.type==='video'){
-    inner=`<div class="bbl" style="padding:4px"><video class="mvid" src="${msg.url}" controls playsinline preload="metadata"></video></div>`;
-  }else if(msg.type==='file'){
-    inner=`<div class="bbl" style="padding:6px"><a class="mfile" href="${msg.url}" target="_blank" download="${esc(msg.fname||'file')}"><div class="mfile-icon">${fileIcon(msg.fname)}</div><div class="mfile-info"><div class="mfile-name">${esc(msg.fname||'file')}</div><div class="mfile-size">${fmtSize(msg.size)}</div></div><div class="mfile-dl">⬇</div></a></div>`;
+ const labelMap = {
+  image: 'Image',
+  video: 'Video',
+  file: 'Document'
+};
+
+const labelMap = {
+  image: 'Image',
+  video: 'Video',
+  file: 'Document'
+};
+
+if(msg.type === 'text'){
+  inner = `<div class="bbl">${esc(msg.text||'').replace(/\n/g,'<br/>')}${etag}</div>`;
+}else{
+  // 🔢 Auto numbering
+  if(!msg._counted){
+    mediaCounter[msg.type]++;
+    msg._num = mediaCounter[msg.type];
+    msg._counted = true;
   }
-  if(own)row.style.setProperty('--own-br',c);else row.style.setProperty('--oth-br',c);
+
+  const label = labelMap[msg.type] || 'File';
+  const number = msg._num || 1;
+
+  inner = `
+  <div class="bbl media-bbl">
+    <div class="media-row">
+      <div class="media-icon">
+        ${msg.type==='image'?'🖼️':msg.type==='video'?'🎬':'📄'}
+      </div>
+      <div class="media-info">
+        <div class="media-title">${label} ${number}</div>
+        <div class="media-sub">${esc(msg.fname||'')}</div>
+      </div>
+      <button class="dl-btn">⬇</button>
+    </div>
+  </div>`;
+}  if(own)row.style.setProperty('--own-br',c);else row.style.setProperty('--oth-br',c);
   row.innerHTML=`<div class="mav" style="background:${c}22;color:${c};border:1.5px solid ${c}55">${av}</div><div class="mc">${!own?`<div class="mn">${esc(msg.name||'')}</div>`:''} ${inner}<div class="mt">${ts}</div></div>`;
+const dlBtn = row.querySelector('.dl-btn');
+
+if(dlBtn){
+  dlBtn.addEventListener('click', async (e)=>{
+    e.stopPropagation();
+
+    // ✅ 1. Instant base64 download (images)
+    if(msg.base64){
+      const a = document.createElement('a');
+      a.href = msg.base64;
+      a.download = msg.fname || 'image.jpg';
+      a.click();
+      toast('⬇ Instant download');
+      return;
+    }
+
+    // ✅ 2. Try direct download
+    try{
+      const res = await fetch(msg.url);
+      if(!res.ok) throw new Error();
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = msg.fname || 'file';
+      a.click();
+
+      URL.revokeObjectURL(url);
+      toast('⬇ Download started');
+    }catch{
+      // ✅ 3. Fallback
+      window.open(msg.url,'_blank');
+      toast('Opening file...');
+    }
+  });
+}
   const img=row.querySelector('.mimg');
   if(img)img.addEventListener('click',()=>openLb(msg.url));
   let pt=null;
@@ -433,14 +554,17 @@ async function uploadAndSend({file,kind},mr){
     }
     const result=await uploadToGofile(uploadFile,setProgress);
     progRow.remove();
-    push(mr,{
-      type:kind==='image'?'image':kind==='video'?'video':'file',
-      url:result.url,fname:file.name,size:file.size,
-      name:myName,uid:UID,color:myColor,ts:serverTimestamp()
-    });
-  }catch(e){
-    progRow.remove();
-    toast('Upload failed: '+e.message);
+push(mr,{
+  type:kind==='image'?'image':kind==='video'?'video':'file',
+  url:result.url,
+  base64: base64 || null,
+  fname:file.name,
+  size:file.size,
+  name:myName,
+  uid:UID,
+  color:myColor,
+  ts:serverTimestamp()
+});
   }
 }
 
