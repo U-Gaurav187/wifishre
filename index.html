@@ -535,31 +535,52 @@ async function send(){
 
 async function uploadAndSend({file,kind},mr){
   const tempId='tmp_'+Date.now();
+
   const progRow=mkProgBubble(tempId,file.name);
-  msgsEl.appendChild(progRow);msgsEl.scrollTop=msgsEl.scrollHeight;
+  msgsEl.appendChild(progRow);
+  msgsEl.scrollTop=msgsEl.scrollHeight;
+
   const setProgress=pct=>{
     const b=progRow.querySelector('.uprog-bar');
     const p=progRow.querySelector('.uprog-pct');
-    if(b)b.style.width=pct+'%';if(p)p.textContent=pct+'%';
+    if(b)b.style.width=pct+'%';
+    if(p)p.textContent=pct+'%';
   };
- 
 
+  let base64 = null;
 
-try{
-  push(mr,{
-    type:kind==='image'?'image':kind==='video'?'video':'file',
-    url:result.url,
-    base64: base64 || null,
-    fname:file.name,
-    size:file.size,
-    name:myName,
-    uid:UID,
-    color:myColor,
-    ts:serverTimestamp()
-  });
-}
-catch(e){
-  toast('Upload failed');
+  try{
+    let uploadFile = file;
+
+    // ✅ Image compression + base64
+    if(kind === 'image'){
+      base64 = await compressImage(file);
+      uploadFile = await dataUrlToFile(base64, file.name);
+    }
+
+    // ✅ Upload to Gofile
+    const result = await uploadToGofile(uploadFile, setProgress);
+
+    progRow.remove();
+
+    // ✅ Send message to Firebase
+    push(mr,{
+      type: kind==='image' ? 'image' : kind==='video' ? 'video' : 'file',
+      url: result.url,
+      base64: base64,
+      fname: file.name,
+      size: file.size,
+      name: myName,
+      uid: UID,
+      color: myColor,
+      ts: serverTimestamp()
+    });
+
+  }catch(e){
+    console.error(e);
+    progRow.remove();
+    toast('Upload failed');
+  }
 }
   function mkProgBubble(id,filename){
   const row=document.createElement('div');
