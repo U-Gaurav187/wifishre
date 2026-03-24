@@ -392,11 +392,7 @@ function mkBubble(id,msg,own){
   file: 'Document'
 };
 
-const labelMap = {
-  image: 'Image',
-  video: 'Video',
-  file: 'Document'
-};
+
 
 if(msg.type === 'text'){
   inner = `<div class="bbl">${esc(msg.text||'').replace(/\n/g,'<br/>')}${etag}</div>`;
