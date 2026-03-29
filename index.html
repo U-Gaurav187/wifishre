@@ -533,41 +533,30 @@ async function send(){
   msgsEl.scrollTop=msgsEl.scrollHeight;
 }
 
-async function uploadAndSend({file,kind},mr){
-  const tempId='tmp_'+Date.now();
-
-  const progRow=mkProgBubble(tempId,file.name);
+// REPLACE your current uploadAndSend function with this:
+async function uploadAndSend({file, kind}, mr) {
+  const tempId = 'tmp_' + Date.now();
+  const progRow = mkProgBubble(tempId, file.name);
   msgsEl.appendChild(progRow);
-  msgsEl.scrollTop=msgsEl.scrollHeight;
+  msgsEl.scrollTop = msgsEl.scrollHeight;
 
-  const setProgress=pct=>{
-    const b=progRow.querySelector('.uprog-bar');
-    const p=progRow.querySelector('.uprog-pct');
-    if(b)b.style.width=pct+'%';
-    if(p)p.textContent=pct+'%';
-  };
-
-  let base64 = null;
-
-  try{
-    let uploadFile = file;
-
-    // ✅ Image compression + base64
-    if(kind === 'image'){
-      base64 = await compressImage(file);
-      uploadFile = await dataUrlToFile(base64, file.name);
-    }
-
-    // ✅ Upload to Gofile
-    const result = await uploadToGofile(uploadFile, setProgress);
+  try {
+    // 1. Upload to transfer.sh (Free, 10GB limit, Direct Links)
+    const fileName = file.name.replace(/\s+/g, '_');
+    const response = await fetch(`https://transfer.sh/${fileName}`, {
+      method: 'PUT',
+      body: file
+    });
+    
+    if (!response.ok) throw new Error("Upload Failed");
+    const directUrl = (await response.text()).trim();
 
     progRow.remove();
 
-    // ✅ Send message to Firebase
-    push(mr,{
-      type: kind==='image' ? 'image' : kind==='video' ? 'video' : 'file',
-      url: result.url,
-      base64: base64,
+    // 2. Send to Firebase (Synced with App)
+    push(mr, {
+      type: kind,
+      url: directUrl,
       fname: file.name,
       size: file.size,
       name: myName,
@@ -576,10 +565,10 @@ async function uploadAndSend({file,kind},mr){
       ts: serverTimestamp()
     });
 
-  }catch(e){
+  } catch (e) {
     console.error(e);
     progRow.remove();
-    toast('Upload failed');
+    toast('Upload failed. Try a smaller file.');
   }
 }
   function mkProgBubble(id,filename){
